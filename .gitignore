@@ -1,2 +1,7 @@
 .env
 .venv
+character.txt
+character_description.txt
+*.JSON
+*.sav
+__pycache__/
