@@ -13,8 +13,12 @@ save_path = ""
 sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer)
 # regex = r"<.*?>"
 
+def clear_console():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
 def find_game_directory():
     global game_directory, save_directory
+    clear_console()
 
     print("Type where is the game directory: ")
     game_directory = input()
@@ -38,6 +42,7 @@ def choose_save_file():
         print("Please pick the game directory first (Option 1).")
         return
 
+    clear_console()
     print("Pick a save file: ")
     for index, name in enumerate(save_folder):
         print(f"{index} - {name}")  
@@ -170,6 +175,10 @@ def process_save_file(save_file):
         print(f"An unexpected error occurred: {e}")
 
 def describe_character():
+    temperature = 1.5
+    max_length = 200
+    top_p = 0.9
+    top_k = 45
 
     SYSTEM_PROMPT = (
     "You are assistant that helps people describe their Cataclysm Dark Days Ahead game character."
@@ -178,7 +187,32 @@ def describe_character():
     "Do not generate any information that is not explicitly present in the provided character data. "
     "Focus on the character. "
     )
-    
+
+    while True:
+        clear_console()
+        print(f"Current settings: Temperature={temperature}, Max Length={max_length}, Top-p={top_p}, Top-k={top_k}")
+        print("Generate with current settings or change them?")
+        print(f"1 - Generate with current settings.")
+        print(f"2 - Change temperature.")
+        print(f"3 - Change max length.")
+        print(f"4 - Change top-p.")
+        print(f"5 - Change top-k.")
+        choice = input("Choose an option: ")
+
+        match choice:
+            case "1":
+                break
+            case "2":
+                temperature = float(input(f"Enter new temperature: "))
+            case "3":
+                max_length = int(input("Enter new max length: "))
+            case "4":
+                top_p = float(input("Enter new top-p: "))
+            case "5":
+                top_k = int(input("Enter new top-k: "))
+            case _:
+                print("Invalid option.")
+
     try:
         with open("character.txt", "r", encoding="utf-8") as char_file:
             description_text = char_file.read().replace("\n", " ").replace("-", "")
@@ -187,29 +221,158 @@ def describe_character():
         print("Generating prompt...")
         response = generate_text(
             prompt=SYSTEM_PROMPT + description_text,
-            temperature=1.5,
-            max_length=250,
-            top_p=0.9,
-            top_k=45,
+            temperature=temperature,
+            max_length=max_length,
+            top_p=top_p,
+            top_k=top_k,
         )
 
         print(f"Prompt: \n{response}")
+
+        backup_file = "character_description_old.txt"
+        try:
+            with open("character_description.txt", "r", encoding="utf-8") as original_file:
+                original_content = original_file.read()
+        except FileNotFoundError as e:
+            original_content = ""
+        
+        with open(backup_file, "w", encoding="utf-8") as backup:
+                backup.write(original_content)
         with open("character_description.txt", "w", encoding="utf-8") as desc_file:
             desc_file.write(response)
             print("Character description saved to character_description.txt")
+            
 
     except FileNotFoundError:
         print("Error: character.txt not found. Please process the save file first (Option 3).")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
+def simplify():
+    temperature = 1.5
+    max_length = 200
+    top_p = 0.9
+    top_k = 45
+
+    SYSTEM_PROMPT = (
+    "You are assistant that helps people describe their Cataclysm Dark Days Ahead game character in a concise way."
+    "You will be provided with information about the character, make it simpler and more concise, "
+    "to be used for image generation."
+    "Add an optional list of negative prompts to avoid unwanted elements in the image."
+    )
+
+    while True:
+        clear_console()
+        print(f"Current settings: Temperature={temperature}, Max Length={max_length}, Top-p={top_p}, Top-k={top_k}")
+        print("Generate with current settings or change them?")
+        print(f"1 - Generate with current settings.")
+        print(f"2 - Change temperature.")
+        print(f"3 - Change max length.")
+        print(f"4 - Change top-p.")
+        print(f"5 - Change top-k.")
+        choice = input("Choose an option: ")
+
+        match choice:
+            case "1":
+                break
+            case "2":
+                temperature = float(input("Enter new temperature: "))
+            case "3":
+                max_length = int(input("Enter new max length: "))
+            case "4":
+                top_p = float(input("Enter new top-p: "))
+            case "5":
+                top_k = int(input("Enter new top-k: "))
+            case _:
+                print("Invalid option.")
+
+    try:
+        if os.path.isfile("custom_description.txt"):
+            print("Custom description found. Simplify custom description or generated description?")
+            choice = input(f"1 - Simplify generated description.\n2 - Simplify custom description.\nChoose an option: ")
+            if choice == "1":
+                with open("character_description.txt", "r", encoding="utf-8") as char_file:
+                    description_text = char_file.read().replace("\n", " ").replace("-", "")
+            elif choice == "2":
+                with open("simple_description.txt", "r", encoding="utf-8") as char_file:
+                    description_text = char_file.read().replace("\n", " ").replace("-", "")
+            else:
+                print("Invalid option.")
+                return
+        
+        with open("character_description.txt", "r", encoding="utf-8") as char_file:
+            description_text = char_file.read().replace("\n", " ").replace("-", "")
+        print("Generating prompt...")
+        response = generate_text(
+            prompt=SYSTEM_PROMPT + description_text,
+            temperature=temperature,
+            max_length=max_length,
+            top_p=top_p,
+            top_k=top_k,
+        )
+
+        print(f"Prompt: \n{response}")
+
+        backup_file = "simple_description_old.txt"
+        try:
+            with open("simple_description.txt", "r", encoding="utf-8") as original_file:
+                original_content = original_file.read()
+        except FileNotFoundError as e:
+            original_content = ""
+
+        with open(backup_file, "w", encoding="utf-8") as backup:
+                backup.write(original_content)
+        with open("simple_description.txt", "w", encoding="utf-8") as desc_file:
+            desc_file.write(response)
+            print("Simple character description saved to simple_description.txt")
+
+    except FileNotFoundError:
+        print("Error: character_description.txt not found. Please describe the character first (Option 4).")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+def custom_description():
+    filename = "custom_description.txt"
+    if os.path.exists(filename):
+        print("A custom description already exists. Do you want to edit the existing description? (y/n)")
+        choice = input().lower()
+        if choice == 'y':
+            try:
+                with open(filename, "r", encoding="utf-8") as file:
+                    custom_desc = file.read()
+                    print(f"Current custom description:\n", {custom_desc})
+                    print("\nEnter your new custom description: ")
+                    custom_desc = input()
+            except Exception as e:
+                print(f"Error reading the file: {e}")
+                return
+        else:
+            print("Enter your custom description: ")
+            custom_desc = input()
+    else:
+        print("Enter your custom description: ")
+        custom_desc = input()
+    
+    try:
+        with open("custom_description.txt", "w", encoding="utf-8") as desc_file:
+            desc_file.write(custom_desc)
+        print(f"Custom character description saved to {filename}")
+        return custom_desc
+    except Exception as e:
+        print(f"Error writing to the file: {e}")
+        return
+
+
 while True:
+    clear_console()
     print("\n--- Cataclysm Visualizer Menu ---")
     print(f"1 - Pick the game directory.")
     print(f"2 - Pick the save file.")
     print(f"3 - Process the save file.")
-    print(f"4 - Generate narrative from game logs.")
-    print(f"5 - Exit.")
+    print(f"4 - Generate description from game save.")
+    print(f"5 - Simplify the generated description.")
+    print(f"6 - Enter a custom description.")
+    print(f"7 - Exit.")
     print(f"Current save file: {save_file or "Not set"}")
 
     match input("Choose an option: "):
@@ -222,6 +385,10 @@ while True:
         case "4":
             describe_character()
         case "5":
+            simplify()
+        case "6":
+            custom_description()
+        case "7":
             print("Bye.")
             break
         case _:
