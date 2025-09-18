@@ -1,9 +1,8 @@
 .env
 .venv
-character.txt
-character_description.txt
-custom_description.txt
-simple_description.txt
+
+*.txt
 *.JSON
 *.sav
-__pycache__/
+
+__pycache__
