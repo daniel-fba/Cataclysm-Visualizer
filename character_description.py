@@ -3,7 +3,8 @@ import os
 import sys
 import codecs
 import os
-from llm import generate_text
+from llm import generate_text, initialize_google_client, initialize_openai_client
+from llm import GEMINI_API_KEY, OPENAI_API_KEY, KOBOLD_API_ENDPOINT
 
 game_directory = ""
 save_directory = ""
@@ -12,6 +13,97 @@ save_file = ""
 save_path = ""
 sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer)
 # regex = r"<.*?>"
+mode = "local"
+model = "local-model"
+
+def set_api_key():
+    global GEMINI_API_KEY, OPENAI_API_KEY, KOBOLD_API_ENDPOINT
+    
+    while True:
+        clear_console()
+        print("Set API for LLM services.")
+        print(f"Current settings:\nLocal endpoint = {KOBOLD_API_ENDPOINT}\nGemini API key = {'Set' if GEMINI_API_KEY else 'Not set'}\nOpenAI API key = {'Set' if OPENAI_API_KEY else 'Not set'}\n")
+        print("1 - Change local endpoint.")
+        print("2 - Change Gemini API key.")
+        print("3 - Change OpenAI API key.")
+        print("4 - Back to main menu.")
+
+        choice = input("Select an option (1-4): ")
+        match choice:
+            case "1":
+                print("Current local endpoint:", KOBOLD_API_ENDPOINT)
+                new_endpoint = input("Enter new local endpoint: ").strip()
+                if new_endpoint:
+                    with open(".env", "r", encoding="utf-8") as env_file:
+                        env_content = env_file.readlines()
+                    
+                    found = False
+                    with open(".env", "w", encoding="utf-8") as env_file:
+                        for line in env_content:
+                            if line.startswith("KOBOLD_API_ENDPOINT="):
+                                    env_file.write(f"KOBOLD_API_ENDPOINT={new_endpoint}\n")
+                                    found = True
+                            else:
+                                env_file.write(line)
+                        if not found:
+                            env_file.write(f"KOBOLD_API_ENDPOINT={new_endpoint}\n")
+                    KOBOLD_API_ENDPOINT = new_endpoint
+                    os.environ["KOBOLD_API_ENDPOINT"] = KOBOLD_API_ENDPOINT
+                    print("Local endpoint updated.")
+                else:
+                    print("No local endpoint provided.")
+
+            case "2":
+                print("Enter your Gemini API key: ")
+                new_gemini_key = input().strip()
+                if new_gemini_key:
+                    with open(".env", "r", encoding="utf-8") as env_file:
+                        env_content = env_file.readlines()
+                    
+                    found = False
+                    with open(".env", "w", encoding="utf-8") as env_file:
+                        for line in env_content:
+                            if line.startswith("GEMINI_API_KEY="):
+                                    env_file.write(f"GEMINI_API_KEY={new_gemini_key}\n")
+                                    found = True
+                            else:
+                                env_file.write(line)
+                        if not found:
+                            env_file.write(f"\nGEMINI_API_KEY={new_gemini_key}\n")
+                    GEMINI_API_KEY = new_gemini_key
+                    os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
+                    initialize_google_client()
+                    print("Gemini API key updated.")
+                else:
+                    print("No Gemini API key provided.")
+
+            case "3":
+                print("Enter your OpenAI API key: ")
+                new_openai_key = input().strip()
+                if new_openai_key:
+                    with open(".env", "r", encoding="utf-8") as env_file:
+                        env_content = env_file.readlines()
+                    
+                    found = False
+                    with open(".env", "w", encoding="utf-8") as env_file:
+                        for line in env_content:
+                            if line.startswith("OPENAI_API_KEY="):
+                                    env_file.write(f"OPENAI_API_KEY={new_openai_key}\n")
+                                    found = True
+                            else:
+                                env_file.write(line)
+                        if not found:
+                            env_file.write(f"\nOPENAI_API_KEY={new_openai_key}\n")
+                    OPENAI_API_KEY = new_openai_key
+                    os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+                    initialize_openai_client()
+                    print("OpenAI API key updated.")
+                else:
+                    print("No OpenAI API key provided.")
+            case "4":
+                return print("Returning to main menu.")
+            case _:
+                print("Invalid option.\n")
 
 def clear_console():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -174,6 +266,35 @@ def process_save_file(save_file):
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
+def change_llm_settings():
+    global mode, model
+    while True:
+        clear_console()
+        print(f"Current settings: Mode = {mode}, Model = {model}\n")
+        print("1 - Local.")
+        print("2 - Google - Gemini 2.5 Flash.")
+        print("3 - OpenAI - GPT-5.")
+        print("4 - Keep current settings.")
+        mode = (input(f"\nChoose new mode (1-4): "))
+        match mode:
+            case "1":
+                mode = "Local"
+                model = "local-model"
+                break
+            case "2":
+                mode = "Google"
+                model = "gemini-2.5-flash"
+                break
+            case "3":
+                mode = "OpenAI"
+                model = "gpt-5"
+                break
+            case "4":
+                return print(f"Keeping current settings. {mode}, {model}")
+            case _:
+                print("Invalid option.\n")
+    print(f"Settings updated: Mode={mode}, Model={model}")
+
 def describe_character():
     temperature = 1.5
     max_length = 200
@@ -190,26 +311,32 @@ def describe_character():
 
     while True:
         clear_console()
-        print(f"Current settings: Temperature={temperature}, Max Length={max_length}, Top-p={top_p}, Top-k={top_k}")
-        print("Generate with current settings or change them?")
+        print(f"Current settings: Mode = {mode}, Model = {model}, Temperature = {temperature}, Max Length = {max_length}, Top-p = {top_p}, Top-k = {top_k}")
+        print("\nGenerate with current settings or change them?\n")
         print(f"1 - Generate with current settings.")
-        print(f"2 - Change temperature.")
-        print(f"3 - Change max length.")
-        print(f"4 - Change top-p.")
-        print(f"5 - Change top-k.")
+        print(f"2 - Change mode and model.")
+        print(f"3 - Change temperature.")
+        print(f"4 - Change max length.")
+        print(f"5 - Change top-p.")
+        print(f"6 - Change top-k.")
+        print(f"7 - Back to main menu.")
         choice = input("Choose an option: ")
 
         match choice:
             case "1":
                 break
             case "2":
-                temperature = float(input(f"Enter new temperature: "))
+                change_llm_settings()
             case "3":
-                max_length = int(input("Enter new max length: "))
+                temperature = float(input(f"Enter new temperature: "))
             case "4":
-                top_p = float(input("Enter new top-p: "))
+                max_length = int(input("Enter new max length: "))
             case "5":
+                top_p = float(input("Enter new top-p: "))
+            case "6":
                 top_k = int(input("Enter new top-k: "))
+            case "7":
+                return print("Returning to main menu.")
             case _:
                 print("Invalid option.")
 
@@ -220,6 +347,8 @@ def describe_character():
 
         print("Generating prompt...")
         response = generate_text(
+            mode=mode,
+            model=model,
             prompt=SYSTEM_PROMPT + description_text,
             temperature=temperature,
             max_length=max_length,
@@ -263,26 +392,32 @@ def simplify():
 
     while True:
         clear_console()
-        print(f"Current settings: Temperature={temperature}, Max Length={max_length}, Top-p={top_p}, Top-k={top_k}")
-        print("Generate with current settings or change them?")
+        print(f"Current settings: Temperature = {temperature}, Max Length = {max_length}, Top-p = {top_p}, Top-k = {top_k}")
+        print("\nGenerate with current settings or change them?\n")
         print(f"1 - Generate with current settings.")
-        print(f"2 - Change temperature.")
-        print(f"3 - Change max length.")
-        print(f"4 - Change top-p.")
-        print(f"5 - Change top-k.")
+        print(f"2 - Change mode and model.")
+        print(f"3 - Change temperature.")
+        print(f"4 - Change max length.")
+        print(f"5 - Change top-p.")
+        print(f"6 - Change top-k.")
+        print(f"7 - Back to main menu.")
         choice = input("Choose an option: ")
 
         match choice:
             case "1":
                 break
             case "2":
-                temperature = float(input("Enter new temperature: "))
+                change_llm_settings()
             case "3":
-                max_length = int(input("Enter new max length: "))
+                temperature = float(input("Enter new temperature: "))
             case "4":
-                top_p = float(input("Enter new top-p: "))
+                max_length = int(input("Enter new max length: "))
             case "5":
+                top_p = float(input("Enter new top-p: "))
+            case "6":
                 top_k = int(input("Enter new top-k: "))
+            case "7":
+                return print("Returning to main menu.")
             case _:
                 print("Invalid option.")
 
@@ -333,38 +468,45 @@ def simplify():
 
 def custom_description():
     filename = "custom_description.txt"
-    if os.path.exists(filename):
-        print("A custom description already exists. Do you want to edit the existing description? (y/n)")
-        choice = input().lower()
-        if choice == 'y':
-            try:
-                with open(filename, "r", encoding="utf-8") as file:
-                    custom_desc = file.read()
-                    print(f"Current custom description:\n", {custom_desc})
-                    print("\nEnter your new custom description: ")
-                    custom_desc = input()
-            except Exception as e:
-                print(f"Error reading the file: {e}")
-                return
-        else:
-            print("Enter your custom description: ")
-            custom_desc = input()
-    else:
-        print("Enter your custom description: ")
-        custom_desc = input()
-    
-    try:
-        with open("custom_description.txt", "w", encoding="utf-8") as desc_file:
-            desc_file.write(custom_desc)
-        print(f"Custom character description saved to {filename}")
-        return custom_desc
-    except Exception as e:
-        print(f"Error writing to the file: {e}")
-        return
+    custom_desc = ""
 
+    while True:
+        clear_console()
+        print("Custom Description Menu")
+        print(f"1 - View current custom description.")
+        print(f"2 - Enter a new custom description.")
+        print(f"3 - Back to main menu.")
+
+        choice = input("Choose an option: ")
+
+        match choice:
+            case "1":
+                if os.path.exists(filename):
+                    try:
+                        with open(filename, "r", encoding="utf-8") as file:
+                            custom_desc = file.read()
+                            print(f"Current custom description:\n{custom_desc}")
+                    except Exception as e:
+                        print(f"Error reading the file: {e}")
+                else:
+                    print("No custom description exists yet.")
+                input("Press Enter to continue...")
+            case "2":
+                print("Enter your custom description: ")
+                custom_desc = input()
+                try:
+                    with open(filename, "w", encoding="utf-8") as desc_file:
+                        desc_file.write(custom_desc)
+                    print(f"Custom character description saved to {filename}")
+                except Exception as e:
+                    print(f"Error writing to the file: {e}")
+            case "3":
+                return print("Returning to main menu.")
+            case _:
+                print("Invalid option.\n")
 
 while True:
-    clear_console()
+    
     print("\n--- Cataclysm Visualizer Menu ---")
     print(f"1 - Pick the game directory.")
     print(f"2 - Pick the save file.")
@@ -372,7 +514,9 @@ while True:
     print(f"4 - Generate description from game save.")
     print(f"5 - Simplify the generated description.")
     print(f"6 - Enter a custom description.")
-    print(f"7 - Exit.")
+    print(f"7 - Change LLM settings.")
+    print(f"8 - Set API keys.")
+    print(f"9 - Exit.")
     print(f"Current save file: {save_file or "Not set"}")
 
     match input("Choose an option: "):
@@ -389,7 +533,12 @@ while True:
         case "6":
             custom_description()
         case "7":
+            change_llm_settings()
+        case "8":
+            set_api_key()
+        case "9":
             print("Bye.")
             break
         case _:
             print("Invalid option.")
+    clear_console()

@@ -1,9 +1,49 @@
 import requests
 import json
+from google import genai
+from openai import OpenAI
+from dotenv import load_dotenv
+import os
 
-KOBOLD_API_ENDPOINT = "http://localhost:5001/api/v1/generate"
+load_dotenv()
 
-def generate_text(prompt: str, temperature: int = 0.8, max_length: int = 150, top_p: float = 0.9, top_k: int = 45):
+
+def initialize_google_client():
+    global google_client
+    try:
+        google_client = genai.Client(api_key=GEMINI_API_KEY)
+        print("Google client initialized successfully.")
+    except Exception as e:
+        print(f"Error initializing Google client: {e}")
+        input("Press Enter to continue...")
+
+def initialize_openai_client():
+    global openai_client
+    try:
+        openai_client = OpenAI(api_key=OPENAI_API_KEY)
+        print("OpenAI client initialized successfully.")
+    except Exception as e:
+        print(f"Error initializing OpenAI client: {e}")
+        input("Press Enter to continue...")
+
+if os.getenv("KOBOLD_API_ENDPOINT"):
+    KOBOLD_API_ENDPOINT = os.getenv("KOBOLD_API_ENDPOINT")
+else:
+    KOBOLD_API_ENDPOINT = "http://localhost:5000/api/v1/generate"
+
+if os.getenv("GEMINI_API_KEY"):
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    initialize_google_client()
+else:
+    GEMINI_API_KEY = ""
+
+if os.getenv("OPENAI_API_KEY"):
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    initialize_openai_client()
+else:
+    OPENAI_API_KEY = ""
+
+def generate_text(mode: str, model: str, prompt: str, temperature: int = 0.8, max_length: int = 150, top_p: float = 0.9, top_k: int = 45):
     headers = {
         "Content-Type": "application/json",
     }
@@ -16,19 +56,50 @@ def generate_text(prompt: str, temperature: int = 0.8, max_length: int = 150, to
         "top_k": top_k, # The model considers only the top k most likely tokens at each step of the generation.
     }
 
-    try:
-        print(f"Sending request to {KOBOLD_API_ENDPOINT}...")
-        response = requests.post(
-            KOBOLD_API_ENDPOINT,
-            headers=headers,
-            data=json.dumps(payload),
-            timeout=60
-        )
+    response = None
 
-        response.raise_for_status()
-        response_data = response.json()
-        return response_data["results"][0]["text"]
-    
+    match mode:
+        case "Local":
+            try:
+                response = requests.post(KOBOLD_API_ENDPOINT,
+                headers=headers,
+                data=json.dumps(payload),
+                timeout=60
+                )
+                print(f"Sending request to {KOBOLD_API_ENDPOINT}...")
+            except Exception as e:
+                return f"Error communicating with the local API: {e}"
+        case "Google":
+            try:
+                response = google_client.models.generate_content(
+                    model=model, contents=prompt
+                )
+                print(f"Sending request to Google API...")
+            except Exception as e:
+                return f"Error communicating with the Google API: {e}"
+        case "OpenAI":
+            try:
+                response = openai_client.chat.completions.create(
+                    model=model, messages=[
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                print(f"Sending request to OpenAI API...")
+            except Exception as e:
+                return f"Error communicating with the OpenAI API: {e}"
+
+    try:
+        if response:
+            if mode == "Local":
+                response.raise_for_status()
+                response_data = response.model_dump_json()
+                return response_data["results"][0]["text"]
+            elif mode == "Google":
+                return response.text
+            elif mode == "OpenAI":
+                return response.choices[0].message.content
+        else:
+            return "No response received from the API."
     except requests.exceptions.RequestException as e:
         return f"Error communicating with the API: {e}"
     except (KeyError, IndexError) as e:
