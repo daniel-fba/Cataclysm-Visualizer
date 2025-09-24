@@ -19,6 +19,24 @@ llm_model = "local-model"
 image_mode = "Local"
 image_model = "local-model"
 
+def set_env_variable(key, value):
+    env_content = []
+    found = False
+    try:
+        with open(".env", "r", encoding="utf-8") as env_file:
+            env_content = env_file.readlines()
+    except FileNotFoundError:
+        pass
+    with open(".env", "w", encoding="utf-8") as env_file:
+        for line in env_content:
+            if line.strip().startswith(f"{key}="):
+                env_file.write(f"{key}={value}\n")
+                found = True
+            else:
+                env_file.write(line)
+        if not found:
+            env_file.write(f"{key}={value}\n")
+
 #TODO: Add option to change comfyui endpoint
 def set_api_key():
     global GEMINI_API_KEY, OPENAI_API_KEY, KOBOLD_API_ENDPOINT, STABILITY_API_KEY
@@ -39,42 +57,17 @@ def set_api_key():
                 print("Current local endpoint:", KOBOLD_API_ENDPOINT)
                 new_endpoint = input("Enter new local endpoint: ").strip()
                 if new_endpoint:
-                    with open(".env", "r", encoding="utf-8") as env_file:
-                        env_content = env_file.readlines()
-                    
-                    found = False
-                    with open(".env", "w", encoding="utf-8") as env_file:
-                        for line in env_content:
-                            if line.startswith("KOBOLD_API_ENDPOINT="):
-                                    env_file.write(f"KOBOLD_API_ENDPOINT={new_endpoint}\n")
-                                    found = True
-                            else:
-                                env_file.write(line)
-                        if not found:
-                            env_file.write(f"KOBOLD_API_ENDPOINT={new_endpoint}\n")
+                    set_env_variable("KOBOLD_API_ENDPOINT", new_endpoint)
                     KOBOLD_API_ENDPOINT = new_endpoint
                     os.environ["KOBOLD_API_ENDPOINT"] = KOBOLD_API_ENDPOINT
                     print("Local endpoint updated.")
                 else:
-                    print("No local endpoint provided.")
-
+                    print("No endpoint provided.")
             case "2":
                 print("Enter your Gemini API key: ")
                 new_gemini_key = input().strip()
                 if new_gemini_key:
-                    with open(".env", "r", encoding="utf-8") as env_file:
-                        env_content = env_file.readlines()
-                    
-                    found = False
-                    with open(".env", "w", encoding="utf-8") as env_file:
-                        for line in env_content:
-                            if line.startswith("GEMINI_API_KEY="):
-                                    env_file.write(f"GEMINI_API_KEY={new_gemini_key}\n")
-                                    found = True
-                            else:
-                                env_file.write(line)
-                        if not found:
-                            env_file.write(f"\nGEMINI_API_KEY={new_gemini_key}\n")
+                    set_env_variable("GEMINI_API_KEY", new_gemini_key)
                     GEMINI_API_KEY = new_gemini_key
                     os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
                     initialize_google_client()
@@ -86,19 +79,7 @@ def set_api_key():
                 print("Enter your OpenAI API key: ")
                 new_openai_key = input().strip()
                 if new_openai_key:
-                    with open(".env", "r", encoding="utf-8") as env_file:
-                        env_content = env_file.readlines()
-                    
-                    found = False
-                    with open(".env", "w", encoding="utf-8") as env_file:
-                        for line in env_content:
-                            if line.startswith("OPENAI_API_KEY="):
-                                    env_file.write(f"OPENAI_API_KEY={new_openai_key}\n")
-                                    found = True
-                            else:
-                                env_file.write(line)
-                        if not found:
-                            env_file.write(f"\nOPENAI_API_KEY={new_openai_key}\n")
+                    set_env_variable("OPENAI_API_KEY", new_openai_key)
                     OPENAI_API_KEY = new_openai_key
                     os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
                     initialize_openai_client()
@@ -109,19 +90,7 @@ def set_api_key():
                 print("Enter your Stability API key: ")
                 new_stability_key = input().strip()
                 if new_stability_key:
-                    with open(".env", "r", encoding="utf-8") as env_file:
-                        env_content = env_file.readlines()
-
-                    found = False
-                    with open(".env", "w", encoding="utf-8") as env_file:
-                        for line in env_content:
-                            if line.startswith("STABILITY_API_KEY="):
-                                env_file.write(f"STABILITY_API_KEY={new_stability_key}\n")
-                                found = True
-                            else:
-                                env_file.write(line)
-                        if not found:
-                            env_file.write(f"\nSTABILITY_API_KEY={new_stability_key}\n")
+                    set_env_variable("STABILITY_API_KEY", new_stability_key)
                     STABILITY_API_KEY = new_stability_key
                     os.environ["STABILITY_API_KEY"] = STABILITY_API_KEY
                     print("Stability API key updated.")
@@ -479,6 +448,7 @@ def generate_image():
     "Add an optional list of negative prompts to avoid unwanted elements in the image."
     )
     local_batch_size = 1
+    #TODO: Add option to change image size with presets (256x256, 512x512, 768x768, 1024x1024)
     #TODO: Add option to select what description to use (custom/old/last)
     #TODO: Add option to randomize/set seed in comfyui
     #TODO: Add option to select workflow in comfyui
@@ -550,6 +520,7 @@ while True:
         case "6":
             generate_image()
         case "7":
+            clear_console()
             print("1 - Change LLM settings.")
             print("2 - Change Image settings.")
             sub_choice = input("Choose an option: ")
