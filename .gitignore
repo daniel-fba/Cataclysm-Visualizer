@@ -5,4 +5,10 @@
 *.JSON
 *.sav
 
+Character Descriptions/
+Character/
+Generated Images/
+
 __pycache__
+
+!Workflows/*.json
