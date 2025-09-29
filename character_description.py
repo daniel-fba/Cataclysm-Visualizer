@@ -6,12 +6,12 @@ import os
 from llm import generate_text, initialize_google_client, initialize_openai_client
 from llm import GEMINI_API_KEY, OPENAI_API_KEY, KOBOLD_API_ENDPOINT
 from image_gen import image_gen
-from image_gen import STABILITY_API_KEY
+from image_gen import STABILITY_API_KEY, COMFYUI_API_ENDPOINT
 
 class App:
     sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer)
     def __init__(self):
-        default_configs = {
+        self.default_configs = {
             "game_directory": "",
             "save_directory": "",
             "save_folder": [],
@@ -26,14 +26,18 @@ class App:
             "image_mode": "Local",
             "image_model": "local-model",
             "local_batch_size": 1,
-            "image_style": "cartoon"
+            "image_style": "cartoon",
+            "image_width": 512,
+            "image_height": 512,
+            "image_seed": 0,
+            "workflow": "sdxlturbo.json"
         }
         try:
             with open("configs.json", "r", encoding="utf-8") as configs_file:
                 loaded_configs = json.load(configs_file)
-            self.configs = default_configs | loaded_configs
+            self.configs = self.default_configs | loaded_configs
         except (FileNotFoundError, json.JSONDecodeError):
-            self.configs = default_configs
+            self.configs = self.default_configs
             self.update_configs()
 
         self.game_directory = self.configs.get("game_directory")
@@ -51,10 +55,15 @@ class App:
         self.image_model = self.configs.get("image_model")
         self.local_batch_size = self.configs.get("local_batch_size")
         self.image_style = self.configs.get("image_style")
+        self.image_width = self.configs.get("image_width")
+        self.image_height = self.configs.get("image_height")
+        self.image_seed = self.configs.get("image_seed")
+        self.workflow = self.configs.get("workflow")
         self.STABILITY_API_KEY = STABILITY_API_KEY
         self.GEMINI_API_KEY = GEMINI_API_KEY
         self.OPENAI_API_KEY = OPENAI_API_KEY
         self.KOBOLD_API_ENDPOINT = KOBOLD_API_ENDPOINT
+        self.COMFYUI_API_ENDPOINT = COMFYUI_API_ENDPOINT
 
     def clear_console(self):
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -62,6 +71,21 @@ class App:
     def update_configs(self):
         with open("configs.json", "w", encoding="utf-8") as configs_file:
             json.dump(self.configs, configs_file, indent=4)
+
+    def reset_to_default(self, setting):
+        if setting in self.configs:
+            default_value = self.default_configs.get(setting)
+            self.configs[setting] = default_value
+            setattr(self, setting, default_value)
+            self.update_configs()
+            print(f"Setting '{setting}' reset to default: {self.default_configs[setting]}.")
+        elif "API" in setting:
+            self.set_env_variable(setting, "")
+            setattr(self, setting, "")
+            os.environ[setting] = ""
+            print(f"Setting '{setting}' reset to default (empty).")
+        else:
+            print(f"Setting '{setting}' not found.")
 
     def set_env_variable(self, key, value):
         env_content = []
@@ -81,19 +105,20 @@ class App:
             if not found:
                 env_file.write(f"{key}={value}\n")
 
-    #TODO: Add option to change comfyui endpoint
     def set_api_key(self):        
         while True:
             self.clear_console()
             print("Set API for LLM services.")
-            print(f"Current settings:\nLocal endpoint = {self.KOBOLD_API_ENDPOINT}\nGemini API key = {'Set' if self.GEMINI_API_KEY else 'Not set'}\nOpenAI API key = {'Set' if self.OPENAI_API_KEY else 'Not set'}\nStability API key = {'Set' if self.STABILITY_API_KEY else 'Not set'}\n")
-            print("1 - Change local endpoint.")
+            print(f"Current settings:\nKobold local endpoint = {self.KOBOLD_API_ENDPOINT}\nGemini API key = {'Set' if self.GEMINI_API_KEY else 'Not set'}\nOpenAI API key = {'Set' if self.OPENAI_API_KEY else 'Not set'}\nStability API key = {'Set' if self.STABILITY_API_KEY else 'Not set'}\n")
+            print("1 - Change Kobold local endpoint.")
             print("2 - Change Gemini API key.")
             print("3 - Change OpenAI API key.")
             print("4 - Change Stability API key.")
-            print("5 - Back to main menu.")
+            print("5 - Change ComfyUI API endpoint.")
+            print("6 - Reset all to default.")
+            print("7 - Back to main menu.")
 
-            choice = input("Select an option (1-5): ")
+            choice = input("Select an option (1-7): ")
             match choice:
                 case "1":
                     print("Current local endpoint:", self.KOBOLD_API_ENDPOINT)
@@ -140,8 +165,25 @@ class App:
                         print("Stability API key updated.")
                     else:
                         print("No Stability API key provided.")
-                        
+                
                 case "5":
+                    print("Current ComfyUI endpoint:", os.getenv("COMFYUI_API_ENDPOINT", "Not set"))
+                    new_comfyui_endpoint = input("Enter new ComfyUI API endpoint: ").strip()
+                    if new_comfyui_endpoint:
+                        self.set_env_variable("COMFYUI_API_ENDPOINT", new_comfyui_endpoint)
+                        self.COMFYUI_API_ENDPOINT = new_comfyui_endpoint
+                        os.environ["COMFYUI_API_ENDPOINT"] = self.COMFYUI_API_ENDPOINT
+                        print("ComfyUI API endpoint updated.")
+                    else:
+                        print("No ComfyUI API endpoint provided.")
+                case "6":
+                    self.reset_to_default("KOBOLD_API_ENDPOINT")
+                    self.reset_to_default("GEMINI_API_KEY")
+                    self.reset_to_default("OPENAI_API_KEY")
+                    self.reset_to_default("STABILITY_API_KEY")
+                    self.reset_to_default("COMFYUI_API_ENDPOINT")
+                    print("All API settings reset to default.")
+                case "7":
                     return print("Returning to main menu.")
                 case _:
                     print("Invalid option.\n")
@@ -372,8 +414,9 @@ class App:
             print(f"5 - Change top-p.")
             print(f"6 - Change top-k.")
             print(f"7 - Change system prompt.")
-            print(f"8 - Back to main menu.")
-            choice = input("Choose an option: ")
+            print(f"8 - Reset all to default.")
+            print(f"9 - Back to main menu.")
+            choice = input("Choose an option (1-9): ")
 
             match choice:
                 case "1":
@@ -409,6 +452,13 @@ class App:
                     except Exception as e:
                         print(f"Error reading input: {e}")
                 case "8":
+                    self.reset_to_default("llm_model")
+                    self.reset_to_default("llm_mode")
+                    self.reset_to_default("temperature")
+                    self.reset_to_default("max_length")
+                    self.reset_to_default("top_p")
+                    self.reset_to_default("top_k")
+                case "9":
                     return print("Returning to main menu.")
                 case _:
                     print("Invalid option.")
@@ -471,7 +521,7 @@ class App:
             print(f"2 - Enter a new custom description.")
             print(f"3 - Back to main menu.")
 
-            choice = input("Choose an option: ")
+            choice = input("Choose an option (1-3): ")
 
             match choice:
                 case "1":
@@ -503,21 +553,22 @@ class App:
         SYSTEM_PROMPT = (
         {self.image_style}
         )
-        #TODO: Add option to change image size with presets (256x256, 512x512, 768x768, 1024x1024)
         #TODO: Add option to select what description to use (custom/old/last)
-        #TODO: Add option to randomize/set seed in comfyui
-        #TODO: Add option to select workflow in comfyui
         while True:
             self.clear_console()
-            print(f"Current settings: Image Mode = {self.image_mode}, Image Model = {self.image_model}, Local Batch Size = {self.local_batch_size}")
+            print(f"Current settings: Image Mode = {self.image_mode}, Image Model = {self.image_model}, Local Workflow = {self.workflow}, Local Batch Size = {self.local_batch_size}, Image Width = {self.image_width}, Image Height = {self.image_height}\nSeed = {self.image_seed if self.image_seed != 0 else 'Random'} \nImage Style = {self.image_style}")
             print("\nGenerate with current settings or change them?\n")
-            print(f"1 - Generate with current settings.")
-            print(f"2 - Change batch size (only for Local mode).")
-            print(f"3 - Change image style.")
-            print(f"4 - Change Image Mode and Image Model.")
-            print(f"5 - Back to main menu.")
+            print("1 - Generate with current settings.")
+            print("2 - Change image style.")
+            print("3 - Change batch size (only for Local mode).")
+            print("4 - Change image dimensions (width x height) (only for Local mode).")
+            print("5 - Change image seed (only for Local mode).")
+            print("6 - Change workflow (only for Local mode).")
+            print("7 - Change Image Mode and Image Model.")
+            print("8 - Reset all to default.")
+            print("9 - Back to main menu.")
 
-            choice = input("Choose an option: ")
+            choice = input("Choose an option (1-9): ")
             match choice:
                 case "1":
                     break
@@ -526,12 +577,59 @@ class App:
                     self.configs["local_batch_size"] = self.local_batch_size
                     self.update_configs()
                 case "3":
-                    self.image_style = input("Enter new image style (e.g., 'highly detailed, photorealistic, 4k, intricate, sharp focus'): ")
-                    self.configs["image_style"] = self.image_style
+                    try:
+                        print("Input image width (e.g., 512):")
+                        self.image_width = int(input())
+                        print("Input image height (e.g., 512):")
+                        self.image_height = int(input())
+                    except ValueError:
+                        print("Invalid input. Setting dimensions to 512x512.")
+                        self.image_width = 512
+                        self.image_height = 512
+                    self.configs["image_width"] = self.image_width
+                    self.configs["image_height"] = self.image_height
                     self.update_configs()
                 case "4":
-                    self.change_image_settings()
+                    print("Input a seed number or 0 for random seed:")
+                    try:
+                        self.image_seed = int(input())
+                    except ValueError:
+                        print("Invalid input. Setting seed to 0 (random).")
+                        self.image_seed = 0
+                    self.configs["image_seed"] = self.image_seed
+                    self.update_configs()
                 case "5":
+                    self.image_style = input("Enter new image styles (e.g., 'highly detailed, photorealistic, 4k, intricate, sharp focus'): ")
+                    self.configs["image_style"] = self.image_style
+                    self.update_configs()
+                case "6":
+                    workflows = [f for f in os.listdir("Workflows") if f.endswith(".json")]
+                    print(f"Current Workflow: {self.workflow}")
+                    print("Available workflows:")
+                    for file in workflows:
+                        print(f"{workflows.index(file) + 1} - {file}")
+                    try:
+                        choice = int(input("Choose a workflow file: "))
+                        if choice < 1 or choice > len(workflows):
+                            print("Invalid choice.")
+                    except ValueError:
+                        print("Invalid input.")
+                        continue
+                    self.workflow = workflows[choice - 1]
+                    self.configs["workflow"] = self.workflow
+                    self.update_configs()
+                case "7":
+                    self.change_image_settings()
+                case "8":
+                    self.reset_to_default("image_mode")
+                    self.reset_to_default("image_model")
+                    self.reset_to_default("local_batch_size")
+                    self.reset_to_default("image_style")
+                    self.reset_to_default("image_width")
+                    self.reset_to_default("image_height")
+                    self.reset_to_default("image_seed")
+                    self.reset_to_default("workflow")
+                case "9":
                     return print("Returning to main menu.")
                 case _:
                     print("Invalid option.")
@@ -547,7 +645,11 @@ class App:
             image_gen(
                 prompt=full_prompt,
                 mode=self.image_mode,
-                batch_size=self.local_batch_size
+                batch_size=self.local_batch_size,
+                width=self.image_width,
+                height=self.image_height,
+                seed=self.image_seed if self.image_seed != 0 else None,
+                workflow=self.workflow
             )
         except FileNotFoundError:
             print("Error: character_description.txt not found. Please describe the character first (Option 4).")

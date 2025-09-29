@@ -6,7 +6,7 @@ import websocket #NOTE: websocket-client (https://github.com/websocket-client/we
 import uuid
 import urllib.request
 import urllib.parse
-
+import random
 load_dotenv()
 
 if os.getenv("STABILITY_API_KEY"):
@@ -14,7 +14,12 @@ if os.getenv("STABILITY_API_KEY"):
 else:
     STABILITY_API_KEY = ""
 
-server_address = "127.0.0.1:8188"
+if os.getenv("COMFYUI_API_ENDPOINT"):
+    COMFYUI_API_ENDPOINT = os.getenv("COMFYUI_API_ENDPOINT")
+else:
+    COMFYUI_API_ENDPOINT = "127.0.0.1:8188"
+
+server_address = COMFYUI_API_ENDPOINT
 client_id = str(uuid.uuid4())
 
 def queue_prompt(prompt, prompt_id):
@@ -64,11 +69,11 @@ def get_images(ws, prompt):
     return output_images
 
 
-def image_gen(prompt: str, mode: str, server_address: str = "127.0.0.1:8188", batch_size: int = 1):
+def image_gen(prompt: str, mode: str, server_address: str = "127.0.0.1:8188", batch_size: int = 1, width: int = 512, height: int = 512, seed: int = random.randint(1, 1000000), workflow: str = "sdxlturbo.json"):
 
     if mode == "Local":
         try:
-            with open("Workflows/sdxlturbo.json", "r") as f:
+            with open(f"Workflows/{workflow}", "r") as f:
                 workflow_data = json.load(f)
             prompt_node_id = None
             batch_node_id = None
@@ -78,7 +83,9 @@ def image_gen(prompt: str, mode: str, server_address: str = "127.0.0.1:8188", ba
                     batch_node_id = node_id
                 if node_info.get("_meta", {}).get("title") == "CLIP Text Encode (Prompt)":
                     prompt_node_id = node_id
-                if prompt_node_id and batch_node_id:
+                if node_info.get("class_type") == "SamplerCustom":
+                    sampler_node_id = node_id
+                if prompt_node_id and batch_node_id and sampler_node_id:
                     break
             if not prompt_node_id:
                 print("Error: Could not find the prompt node in the workflow.")
@@ -86,7 +93,9 @@ def image_gen(prompt: str, mode: str, server_address: str = "127.0.0.1:8188", ba
             
             workflow_data[prompt_node_id]["inputs"]["text"] = prompt
             workflow_data[batch_node_id]["inputs"]["batch_size"] = batch_size
-
+            workflow_data[batch_node_id]["inputs"]["width"] = width
+            workflow_data[batch_node_id]["inputs"]["height"] = height
+            workflow_data[sampler_node_id]["inputs"]["seed"] = seed
             ws = websocket.WebSocket()
             ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
             #print("Generating image, please wait...", flush=True)
