@@ -334,27 +334,40 @@ class App:
             print(f"An unexpected error occurred: {e}")
 
     def change_llm_settings(self):
-        #TODO: Add option to select different models in external services
         while True:
             self.clear_console()
             print(f"Current settings: llm_mode = {self.llm_mode}, llm_model = {self.llm_model}\n")
             print("1 - Local with KoboldCpp.")
-            print("2 - Google - Gemini 2.5 Flash.")
-            print("3 - OpenAI - GPT-5.")
+            print("2 - Google Gemini.")
+            print("3 - OpenAI.")
             print("4 - Keep current settings.")
-            self.llm_mode = (input(f"\nChoose new llm_mode (1-4): "))
-            match self.llm_mode:
+            choice = (input(f"\nChoose new llm_mode (1-4): "))
+            match choice:
                 case "1":
                     self.llm_mode = "Local-Kobold"
                     self.llm_model = "local-model"
                     break
                 case "2":
                     self.llm_mode = "Google"
-                    self.llm_model = "gemini-2.5-flash"
+                    self.clear_console()
+                    print("Enter Google Gemini model name. Leave empty for default(gemini-2.5-flash):")
+                    model_input = input("Model name: ").strip()
+                    if model_input:
+                        self.llm_model = model_input
+                    else:
+                        print("No model provided. Using default: gemini-2.5-flash")
+                        self.llm_model = "gemini-2.5-flash"
                     break
                 case "3":
                     self.llm_mode = "OpenAI"
-                    self.llm_model = "gpt-5"
+                    self.clear_console()
+                    print("Enter OpenAI model name. Leave empty for default(gpt-5):")
+                    model_input = input("Model name: ").strip()
+                    if model_input:
+                        self.llm_model = model_input
+                    else:
+                        print("No model provided. Using default: gpt-5")
+                        self.llm_model = "gpt-5"
                     break
                 case "4":
                     return print(f"Keeping current settings. {self.llm_mode}, {self.llm_model}")
@@ -366,22 +379,28 @@ class App:
         self.update_configs()
 
     def change_image_settings(self):
-        #TODO: Add option to select different models in external services
         while True:
             self.clear_console()
             print(f"Current settings: image_mode = {self.image_mode}, image_model = {self.image_model}\n")
             print("1 - Local with ComfyUI.")
-            print("2 - Stability AI - Stable Diffusion 3.5.")
+            print("2 - Stability AI.")
             print("3 - Keep current settings.")
-            self.image_mode = (input(f"\nChoose new Image Mode (1-3): "))
-            match self.image_mode:
+            choice = (input(f"\nChoose new Image Mode (1-3): "))
+            match choice:
                 case "1":
                     self.image_mode = "Local"
                     self.image_model = "local-model"
                     break
                 case "2":
                     self.image_mode = "Stability AI"
-                    self.image_model = "stable-image-core"
+                    self.clear_console()
+                    print("Enter Stability AI model name. Leave empty for default(stable-image-core):")
+                    model_input = input("Model name: ").strip()
+                    if model_input:
+                        self.image_model = model_input
+                    else:
+                        print("No model provided. Using default: stable-image-core")
+                        self.image_model = "stable-image-core"
                     break
                 case "3":
                     return print(f"Keeping current settings. {self.image_mode}, {self.image_model}")
@@ -402,10 +421,14 @@ class App:
         "Do not speak to the user. "
         )
 
-        #TODO: Explain the settings
         while True:
             self.clear_console()
             print(f"Current settings: LLM Mode = {self.llm_mode}, LLM Model = {self.llm_model}, Temperature = {self.temperature}, Max Length = {self.max_length}, Top-p = {self.top_p}, Top-k = {self.top_k}")
+            print("\n--- LLM Settings Explanation ---")
+            print("Temperature: Controls randomness (0.0 = deterministic, 2.0 = very creative)")
+            print("Max Length: Maximum tokens to generate in response")
+            print("Top-p: Nucleus sampling - considers tokens up to cumulative probability (0.0-1.0)")
+            print("Top-k: Considers only top K most likely tokens at each step")
             print("\nGenerate with current settings or change them?\n")
             print(f"1 - Generate with current settings.")
             print(f"2 - Change LLM Mode and LLM Model.")
@@ -553,9 +576,37 @@ class App:
         SYSTEM_PROMPT = (
         {self.image_style}
         )
-        #TODO: Add option to select what description to use (custom/old/last)
+        
+        # Select which description to use
+        description_file = "Character Descriptions/character_description.txt"
+        
         while True:
             self.clear_console()
+            print("Select which description to use:")
+            print("1 - Last generated description (character_description.txt)")
+            print("2 - Previous description (character_description_old.txt)")
+            print("3 - Custom description (custom_description.txt)")
+            print("4 - Cancel")
+            
+            desc_choice = input("Choose description source (1-4): ")
+            match desc_choice:
+                case "1":
+                    description_file = "Character Descriptions/character_description.txt"
+                    break
+                case "2":
+                    description_file = "Character Descriptions/character_description_old.txt"
+                    break
+                case "3":
+                    description_file = "Character Descriptions/custom_description.txt"
+                    break
+                case "4":
+                    return print("Cancelled.")
+                case _:
+                    print("Invalid option.")
+        
+        while True:
+            self.clear_console()
+            print(f"Using description from: {description_file}")
             print(f"Current settings: Image Mode = {self.image_mode}, Image Model = {self.image_model}, Local Workflow = {self.workflow}, Local Batch Size = {self.local_batch_size}, Image Width = {self.image_width}, Image Height = {self.image_height}\nSeed = {self.image_seed if self.image_seed != 0 else 'Random'} \nImage Style = {self.image_style}")
             print("\nGenerate with current settings or change them?\n")
             print("1 - Generate with current settings.")
@@ -573,10 +624,14 @@ class App:
                 case "1":
                     break
                 case "2":
+                    self.image_style = input("Enter new image styles (e.g., 'highly detailed, photorealistic, 4k, intricate, sharp focus'): ")
+                    self.configs["image_style"] = self.image_style
+                    self.update_configs()
+                case "3":
                     self.local_batch_size = int(input("Enter new batch size: "))
                     self.configs["local_batch_size"] = self.local_batch_size
                     self.update_configs()
-                case "3":
+                case "4":
                     try:
                         print("Input image width (e.g., 512):")
                         self.image_width = int(input())
@@ -589,7 +644,7 @@ class App:
                     self.configs["image_width"] = self.image_width
                     self.configs["image_height"] = self.image_height
                     self.update_configs()
-                case "4":
+                case "5":
                     print("Input a seed number or 0 for random seed:")
                     try:
                         self.image_seed = int(input())
@@ -598,10 +653,6 @@ class App:
                         self.image_seed = 0
                     self.configs["image_seed"] = self.image_seed
                     self.update_configs()
-                case "5":
-                    self.image_style = input("Enter new image styles (e.g., 'highly detailed, photorealistic, 4k, intricate, sharp focus'): ")
-                    self.configs["image_style"] = self.image_style
-                    self.update_configs()
                 case "6":
                     workflows = [f for f in os.listdir("Workflows") if f.endswith(".json")]
                     print(f"Current Workflow: {self.workflow}")
@@ -609,13 +660,13 @@ class App:
                     for file in workflows:
                         print(f"{workflows.index(file) + 1} - {file}")
                     try:
-                        choice = int(input("Choose a workflow file: "))
-                        if choice < 1 or choice > len(workflows):
+                        workflow_choice = int(input("Choose a workflow file: "))
+                        if workflow_choice < 1 or workflow_choice > len(workflows):
                             print("Invalid choice.")
                     except ValueError:
                         print("Invalid input.")
                         continue
-                    self.workflow = workflows[choice - 1]
+                    self.workflow = workflows[workflow_choice - 1]
                     self.configs["workflow"] = self.workflow
                     self.update_configs()
                 case "7":
@@ -635,7 +686,7 @@ class App:
                     print("Invalid option.")
 
         try:
-            with open("Character Descriptions/character_description.txt", "r", encoding="utf-8") as char_file:
+            with open(description_file, "r", encoding="utf-8") as char_file:
                 description_text = char_file.read()
             print("Here is the character:\n", description_text)
 
@@ -652,7 +703,7 @@ class App:
                 workflow=self.workflow
             )
         except FileNotFoundError:
-            print("Error: character_description.txt not found. Please describe the character first (Option 4).")
+            print(f"Error: {description_file} not found. Please check that the file exists.")
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
 
